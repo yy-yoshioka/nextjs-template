@@ -1,119 +1,256 @@
 /**
- * API helper functions for making authenticated requests
+ * API helper functions for making authenticated requests using axios
  */
+import axios, { AxiosRequestConfig, AxiosResponse } from 'axios';
+import { z } from 'zod';
 
-type RequestMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+// Base API URL from environment or default
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
-interface RequestOptions {
-  method?: RequestMethod;
-  headers?: Record<string, string>;
-  body?: string | FormData | URLSearchParams | Blob | ArrayBuffer;
-  credentials?: RequestCredentials;
-}
+// Create an axios instance with default configurations
+const axiosInstance = axios.create({
+  baseURL: API_BASE_URL,
+  withCredentials: true, // Always include credentials (replaces credentials: 'include')
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
 
-interface ApiResponse<T = unknown> {
+// Response type for consistent API responses
+export interface ApiResponse<T = unknown> {
   data: T | null;
   error: string | null;
   status: number;
 }
 
 /**
- * Base API URL from environment or default
+ * Handles API responses in a consistent way
  */
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
+const handleResponse = <T>(response: AxiosResponse<T>): ApiResponse<T> => {
+  return {
+    data: response.data,
+    error: null,
+    status: response.status,
+  };
+};
 
 /**
- * Makes an API request with credentials included by default
+ * Type for API error responses
  */
-export async function fetchApi<T = unknown>(
-  endpoint: string,
-  options: RequestOptions = {}
-): Promise<ApiResponse<T>> {
-  const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
-
-  // Default options with credentials included
-  const defaultOptions: RequestOptions = {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include', // Always include credentials
-  };
-
-  // Merge with user options
-  const fetchOptions: RequestInit = {
-    ...defaultOptions,
-    ...options,
-    headers: {
-      ...defaultOptions.headers,
-      ...options.headers,
-    },
-  };
-
-  try {
-    const response = await fetch(url, fetchOptions);
-    const isJson = response.headers.get('content-type')?.includes('application/json');
-
-    // Parse JSON if available, otherwise return empty data
-    const data = isJson ? await response.json() : null;
-
-    if (response.ok) {
-      return {
-        data: data as T,
-        error: null,
-        status: response.status,
-      };
-    } else {
-      const errorData = data as { error?: string } | null;
-      return {
-        data: null,
-        error: errorData?.error || `Request failed with status ${response.status}`,
-        status: response.status,
-      };
-    }
-  } catch (error) {
-    return {
-      data: null,
-      error: error instanceof Error ? error.message : 'Unknown error occurred',
-      status: 0, // Network error or other exception
-    };
-  }
+interface ApiErrorResponse {
+  error?: string;
+  message?: string;
 }
 
 /**
- * Convenience methods for common HTTP methods
+ * Handles API errors in a consistent way
+ */
+const handleError = (error: unknown): ApiResponse<never> => {
+  if (axios.isAxiosError(error)) {
+    const errorResponse = error.response;
+    const errorData = errorResponse?.data as ApiErrorResponse | undefined;
+    const errorMessage =
+      errorData?.error || errorData?.message || error.message || 'Unknown error occurred';
+
+    return {
+      data: null,
+      error: errorMessage,
+      status: errorResponse?.status || 0,
+    };
+  }
+
+  return {
+    data: null,
+    error: error instanceof Error ? error.message : 'Unknown error occurred',
+    status: 0,
+  };
+};
+
+/**
+ * Validates API response data against a Zod schema
+ */
+const validateWithSchema = <T>(data: unknown, schema: z.ZodType<T>): ApiResponse<T> => {
+  try {
+    const validatedData = schema.parse(data);
+    return {
+      data: validatedData,
+      error: null,
+      status: 200,
+    };
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return {
+        data: null,
+        error: `Validation error: ${error.errors.map((e) => `${e.path.join('.')}: ${e.message}`).join(', ')}`,
+        status: 422, // Unprocessable Entity
+      };
+    }
+    return handleError(error);
+  }
+};
+
+/**
+ * API client with typed methods for common HTTP requests
  */
 export const api = {
-  get: <T = unknown>(endpoint: string, options?: Omit<RequestOptions, 'method' | 'body'>) =>
-    fetchApi<T>(endpoint, { ...options, method: 'GET' }),
-
-  post: <T = unknown>(
+  /**
+   * GET request
+   */
+  get: async <T = unknown>(
     endpoint: string,
-    data: Record<string, unknown>,
-    options?: Omit<RequestOptions, 'method' | 'body'>
-  ) => {
-    const body = JSON.stringify(data);
-    return fetchApi<T>(endpoint, { ...options, method: 'POST', body });
+    config?: AxiosRequestConfig
+  ): Promise<ApiResponse<T>> => {
+    try {
+      const response = await axiosInstance.get<T>(endpoint, config);
+      return handleResponse<T>(response);
+    } catch (error) {
+      return handleError(error) as ApiResponse<T>;
+    }
   },
 
-  put: <T = unknown>(
+  /**
+   * GET request with Zod schema validation
+   */
+  getWithSchema: async <T>(
     endpoint: string,
-    data: Record<string, unknown>,
-    options?: Omit<RequestOptions, 'method' | 'body'>
-  ) => {
-    const body = JSON.stringify(data);
-    return fetchApi<T>(endpoint, { ...options, method: 'PUT', body });
+    schema: z.ZodType<T>,
+    config?: AxiosRequestConfig
+  ): Promise<ApiResponse<T>> => {
+    try {
+      const response = await axiosInstance.get(endpoint, config);
+      return validateWithSchema(response.data, schema);
+    } catch (error) {
+      return handleError(error) as ApiResponse<T>;
+    }
   },
 
-  delete: <T = unknown>(endpoint: string, options?: Omit<RequestOptions, 'method'>) =>
-    fetchApi<T>(endpoint, { ...options, method: 'DELETE' }),
+  /**
+   * POST request
+   */
+  post: async <T = unknown>(
+    endpoint: string,
+    data?: Record<string, unknown>,
+    config?: AxiosRequestConfig
+  ): Promise<ApiResponse<T>> => {
+    try {
+      const response = await axiosInstance.post<T>(endpoint, data, config);
+      return handleResponse<T>(response);
+    } catch (error) {
+      return handleError(error) as ApiResponse<T>;
+    }
+  },
 
-  patch: <T = unknown>(
+  /**
+   * POST request with Zod schema validation
+   */
+  postWithSchema: async <T>(
     endpoint: string,
     data: Record<string, unknown>,
-    options?: Omit<RequestOptions, 'method' | 'body'>
-  ) => {
-    const body = JSON.stringify(data);
-    return fetchApi<T>(endpoint, { ...options, method: 'PATCH', body });
+    schema: z.ZodType<T>,
+    config?: AxiosRequestConfig
+  ): Promise<ApiResponse<T>> => {
+    try {
+      const response = await axiosInstance.post(endpoint, data, config);
+      return validateWithSchema(response.data, schema);
+    } catch (error) {
+      return handleError(error) as ApiResponse<T>;
+    }
+  },
+
+  /**
+   * PUT request
+   */
+  put: async <T = unknown>(
+    endpoint: string,
+    data?: Record<string, unknown>,
+    config?: AxiosRequestConfig
+  ): Promise<ApiResponse<T>> => {
+    try {
+      const response = await axiosInstance.put<T>(endpoint, data, config);
+      return handleResponse<T>(response);
+    } catch (error) {
+      return handleError(error) as ApiResponse<T>;
+    }
+  },
+
+  /**
+   * PUT request with Zod schema validation
+   */
+  putWithSchema: async <T>(
+    endpoint: string,
+    data: Record<string, unknown>,
+    schema: z.ZodType<T>,
+    config?: AxiosRequestConfig
+  ): Promise<ApiResponse<T>> => {
+    try {
+      const response = await axiosInstance.put(endpoint, data, config);
+      return validateWithSchema(response.data, schema);
+    } catch (error) {
+      return handleError(error) as ApiResponse<T>;
+    }
+  },
+
+  /**
+   * DELETE request
+   */
+  delete: async <T = unknown>(
+    endpoint: string,
+    config?: AxiosRequestConfig
+  ): Promise<ApiResponse<T>> => {
+    try {
+      const response = await axiosInstance.delete<T>(endpoint, config);
+      return handleResponse<T>(response);
+    } catch (error) {
+      return handleError(error) as ApiResponse<T>;
+    }
+  },
+
+  /**
+   * DELETE request with Zod schema validation
+   */
+  deleteWithSchema: async <T>(
+    endpoint: string,
+    schema: z.ZodType<T>,
+    config?: AxiosRequestConfig
+  ): Promise<ApiResponse<T>> => {
+    try {
+      const response = await axiosInstance.delete(endpoint, config);
+      return validateWithSchema(response.data, schema);
+    } catch (error) {
+      return handleError(error) as ApiResponse<T>;
+    }
+  },
+
+  /**
+   * PATCH request
+   */
+  patch: async <T = unknown>(
+    endpoint: string,
+    data?: Record<string, unknown>,
+    config?: AxiosRequestConfig
+  ): Promise<ApiResponse<T>> => {
+    try {
+      const response = await axiosInstance.patch<T>(endpoint, data, config);
+      return handleResponse<T>(response);
+    } catch (error) {
+      return handleError(error) as ApiResponse<T>;
+    }
+  },
+
+  /**
+   * PATCH request with Zod schema validation
+   */
+  patchWithSchema: async <T>(
+    endpoint: string,
+    data: Record<string, unknown>,
+    schema: z.ZodType<T>,
+    config?: AxiosRequestConfig
+  ): Promise<ApiResponse<T>> => {
+    try {
+      const response = await axiosInstance.patch(endpoint, data, config);
+      return validateWithSchema(response.data, schema);
+    } catch (error) {
+      return handleError(error) as ApiResponse<T>;
+    }
   },
 };

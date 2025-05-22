@@ -50,7 +50,7 @@ This project uses JWT-based authentication. To set it up:
 JWT_SECRET=your_jwt_secret_key_here
 
 # Application
-NEXT_PUBLIC_API_URL=http://localhost:3000/api
+NEXT_PUBLIC_API_URL=http://localhost:3000
 ```
 
 2. Replace `your_jwt_secret_key_here` with a secure random string for production.

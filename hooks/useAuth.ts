@@ -79,7 +79,7 @@ export function useAuth(): UseAuthReturn {
       try {
         setAuthState((prev) => ({ ...prev, loading: true, error: null }));
 
-        const { error, status } = await api.post<{ token: string }>('/login', {
+        const { error, status } = await api.post<{ token: string }>('/auth/login', {
           email,
           password,
         });
