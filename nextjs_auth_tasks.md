@@ -23,7 +23,7 @@
 
 ## ✅ Step 4: 認証済みユーザーのみページを表示するHOCを作成
 
-- [ ] `lib/withAuth.tsx` を作成し、`useEffect` で `useAuth()` を使用して未認証なら `/login` にリダイレクト
+- [x] `lib/withAuth.tsx` を作成し、`useEffect` で `useAuth()` を使用して未認証なら `/login` にリダイレクト
 
 ---
 
