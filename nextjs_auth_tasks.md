@@ -17,7 +17,7 @@
 
 ## ✅ Step 3: 認証状態を管理するHookを作成
 
-- [ ] `hooks/useAuth.ts` を作成し、`/api/me` を呼び出してユーザー情報を管理するHookを実装
+- [x] `hooks/useAuth.ts` を作成し、`/api/me` を呼び出してユーザー情報を管理するHookを実装
 
 ---
 
