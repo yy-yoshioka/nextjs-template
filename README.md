@@ -38,3 +38,21 @@ git remote add origin https://github.com/your-org/your-new-project.git
 yarn install
 yarn husky install
 ```
+
+## 🔐 Authentication Setup
+
+This project uses JWT-based authentication. To set it up:
+
+1. Create a `.env.local` file in the root directory with the following content:
+
+```
+# Authentication
+JWT_SECRET=your_jwt_secret_key_here
+
+# Application
+NEXT_PUBLIC_API_URL=http://localhost:3000/api
+```
+
+2. Replace `your_jwt_secret_key_here` with a secure random string for production.
+
+3. For development, you can use any string as the JWT_SECRET.
