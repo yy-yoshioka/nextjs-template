@@ -11,7 +11,7 @@
 
 ## ✅ Step 2: API呼び出しラッパーを作成
 
-- [ ] `lib/api.ts` を作成し、`fetch` または `axios` で `credentials: 'include'` を付けてリクエストする共通関数を定義
+- [x] `lib/api.ts` を作成し、`fetch` または `axios` で `credentials: 'include'` を付けてリクエストする共通関数を定義
 
 ---
 
