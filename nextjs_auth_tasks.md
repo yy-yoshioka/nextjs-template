@@ -29,12 +29,12 @@
 
 ## ✅ Step 5: middleware.ts でルート保護（Next.js 13+）
 
-- [ ] プロジェクトルートに `middleware.ts` を作成
-- [ ] CookieからJWTを検証し、未認証なら `/login` にリダイレクト
+- [x] プロジェクトルートに `middleware.ts` を作成
+- [x] CookieからJWTを検証し、未認証なら `/login` にリダイレクト
 
 ---
 
 ## ✅ Step 6: その他の準備
 
-- [ ] `.env.example` に `JWT_SECRET` を追加
-- [ ] `README.md` に認証フローと使い方を追記
+- [x] `.env.example` に `JWT_SECRET` を追加
+- [x] `README.md` に認証フローと使い方を追記
